@@ -294,98 +294,107 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
 
     <script>
-        // Firebase configuration - replace with your app's config
-         const firebaseConfig = {
-  apiKey: "FIREBASE_API_KEY",
-  authDomain: "FIREBASE_AUTH_DOMAIN",
-  projectId: "FIREBASE_PROJECT_ID",
-  storageBucket: "FIREBASE_STORAGE_BUCKET",
-  messagingSenderId: "FIREBASE_MESSAGING_SENDER_ID",
-  appId: "FIREBASE_APP_ID"
-};
-        
-        // Initialize Firebase
-        firebase.initializeApp(firebaseConfig);
-        
-        // Get DOM elements
-        const emailInput = document.getElementById('email');
-        const passwordInput = document.getElementById('password');
-        const deleteBtn = document.getElementById('delete-btn');
-        const messageDiv = document.getElementById('message');
-        
-        // Delete account function
-        deleteBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
-            const password = passwordInput.value;
-            
-            // Validate inputs
-            if (!email || !password) {
-                showMessage('Please enter both email and password.', 'error');
-                return;
-            }
-            
-            if (!isValidEmail(email)) {
-                showMessage('Please enter a valid email address.', 'error');
-                return;
-            }
-            
-            // Show loading state
-            deleteBtn.innerHTML = '<span class="loader"></span> Processing...';
-            deleteBtn.disabled = true;
-            
-            try {
-                // Sign in with Firebase Auth
-                const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
-                const user = userCredential.user;
-                
-                // Delete user account
-                await user.delete();
-                
-                // Show success message
-                showMessage('Your account has been successfully deleted. All associated data has been permanently removed from our systems.', 'success');
-                
-                // Clear form
-                emailInput.value = '';
-                passwordInput.value = '';
-                
-            } catch (error) {
-                console.error('Error deleting account:', error);
-                
-                let errorMessage = 'An error occurred while deleting your account. ';
-                
-                switch (error.code) {
-                    case 'auth/wrong-password':
-                        errorMessage += 'Incorrect password.';
-                        break;
-                    case 'auth/user-not-found':
-                        errorMessage += 'No account found with this email.';
-                        break;
-                    case 'auth/requires-recent-login':
-                        errorMessage += 'For security reasons, please log in again and try deleting your account directly from the app.';
-                        break;
-                    default:
-                        errorMessage += error.message;
-                }
-                
-                showMessage(errorMessage, 'error');
-            } finally {
-                // Reset button state
-                deleteBtn.innerHTML = 'Delete My Account';
-                deleteBtn.disabled = false;
-            }
-        });
-        
-        // Function to show message
-        function showMessage(message, type) {
-            messageDiv.textContent = message;
-            messageDiv.className = 'message ' + type;
+    // Firebase configuration (with placeholders already replaced by your workflow)
+    const firebaseConfig = {
+      apiKey: "FIREBASE_API_KEY",
+      authDomain: "FIREBASE_AUTH_DOMAIN",
+      projectId: "FIREBASE_PROJECT_ID",
+      storageBucket: "FIREBASE_STORAGE_BUCKET",
+      messagingSenderId: "FIREBASE_MESSAGING_SENDER_ID",
+      appId: "FIREBASE_APP_ID"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+
+    // Get DOM elements
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const deleteBtn = document.getElementById('delete-btn');
+    const messageDiv = document.getElementById('message');
+
+    // Error code to user message mapping
+    const errorMessages = {
+      'auth/invalid-email':      'The email address is badly formatted.',
+      'auth/user-disabled':      'This account has been disabled. Contact support.',
+      'auth/user-not-found':     'No account found with this email.',
+      'auth/wrong-password':     'Incorrect password.',
+      'auth/too-many-requests':  'Too many failed attempts. Please wait and try again.',
+      'auth/network-request-failed': 'Network error. Please check your connection.',
+      'auth/requires-recent-login': 'For security reasons, please log in again and try deleting your account directly from the app.'
+    };
+
+    // Helper to show messages
+    function showMessage(message, type = 'error') {
+      messageDiv.textContent = message;
+      messageDiv.className = 'message ' + type;
+      messageDiv.style.display = 'block';
+    }
+
+    function clearMessage() {
+      messageDiv.textContent = '';
+      messageDiv.className = 'message';
+      messageDiv.style.display = 'none';
+    }
+
+    // Validate email (simple regex)
+    function isValidEmail(email) {
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return re.test(email);
+    }
+
+    // Main delete account logic
+    deleteBtn.addEventListener('click', async () => {
+      clearMessage();
+      const email = emailInput.value.trim();
+      const password = passwordInput.value;
+
+      // Client-side validation
+      if (!email || !password) {
+        showMessage('Please enter both email and password.', 'error');
+        return;
+      }
+      if (!isValidEmail(email)) {
+        showMessage('Please enter a valid email address.', 'error');
+        return;
+      }
+
+      deleteBtn.innerHTML = '<span class="loader"></span> Processing...';
+      deleteBtn.disabled = true;
+
+      try {
+        // Sign in the user
+        const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+
+        // Delete the user account
+        await user.delete();
+
+        // Show success message
+        showMessage('Your account has been successfully deleted. All associated data has been permanently removed from our systems.', 'success');
+        emailInput.value = '';
+        passwordInput.value = '';
+
+      } catch (error) {
+        console.error('Error deleting account:', error);
+
+        // Show mapped error message or fallback
+        if (error.code && errorMessages[error.code]) {
+          showMessage(errorMessages[error.code], 'error');
+        } else if (error.message) {
+          showMessage('Unexpected error: ' + error.message, 'error');
+        } else {
+          showMessage('An unexpected error occurred. Please try again later.', 'error');
         }
-        
-        // Email validation
-        function isValidEmail(email) {
-            const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            return re.test(email);
-        }
-    </script>
+      } finally {
+        deleteBtn.innerHTML = 'Delete My Account';
+        deleteBtn.disabled = false;
+      }
+    });
+
+    // Hide message on input
+    emailInput.addEventListener('input', clearMessage);
+    passwordInput.addEventListener('input', clearMessage);
+</script>
 </body>
 </html>
