@@ -244,7 +244,7 @@
     <div class="container">
         <div class="header">
             <div class="logo">
-                <i class="fas fa-chart-line"></i>
+                <i class="fas fa-heart"></i>
                 <span>Benevest</span>
             </div>
             <h1>Account Deletion</h1>
@@ -278,13 +278,13 @@
                 <i class="fas fa-exclamation-triangle"></i>
                 <div>
                     <strong>Warning: This action is irreversible.</strong><br>
-                    All your data including investment history, preferences, and account information will be permanently deleted.
+                    All your donation history, sponsorships, campaign data, and account information will be permanently deleted.
                 </div>
             </div>
         </div>
         
         <div class="footer">
-            <p>© 2023 Benevest. Need help? Contact <a href="mailto:support@benevest.com" style="color: #904A43;">support@benevest.com</a></p>
+            <p>© 2025 Benevest. Need help? Contact <a href="mailto:support@benevest.com" style="color: #904A43;">support@benevest.com</a></p>
         </div>
     </div>
 
@@ -313,22 +313,82 @@
     const deleteBtn = document.getElementById('delete-btn');
     const messageDiv = document.getElementById('message');
 
-    // Error code to user message mapping
+    // Comprehensive error code to user message mapping
     const errorMessages = {
       'auth/invalid-email':      'The email address is badly formatted.',
       'auth/user-disabled':      'This account has been disabled. Contact support.',
-      'auth/user-not-found':     'No account found with this email.',
-      'auth/wrong-password':     'Incorrect password.',
-      'auth/too-many-requests':  'Too many failed attempts. Please wait and try again.',
+      'auth/user-not-found':     'No account found with this email address.',
+      'auth/wrong-password':     'Incorrect password. Please try again.',
+      'auth/invalid-credential': 'Invalid email or password. Please check your credentials.',
+      'auth/invalid-login-credentials': 'Invalid email or password. Please check your credentials.',
+      'auth/too-many-requests':  'Too many failed attempts. Please wait a few minutes and try again.',
       'auth/network-request-failed': 'Network error. Please check your connection.',
-      'auth/requires-recent-login': 'For security reasons, please log in again and try deleting your account directly from the app.'
+      'auth/requires-recent-login': 'For security reasons, please log in again and try deleting your account directly from the app.',
+      'auth/operation-not-allowed': 'Account deletion is currently disabled. Please contact support.',
+      'auth/weak-password': 'Password is too weak. Please use a stronger password.'
     };
+
+    // Enhanced error handling function
+    function getErrorMessage(error) {
+      // Check for Firebase auth error codes first
+      if (error.code && errorMessages[error.code]) {
+        return errorMessages[error.code];
+      }
+      
+      // Handle nested error objects (like the INVALID_LOGIN_CREDENTIALS case)
+      if (error.error && error.error.message) {
+        const nestedMessage = error.error.message.toLowerCase();
+        
+        if (nestedMessage.includes('invalid_login_credentials') || nestedMessage.includes('invalid_password')) {
+          return 'Invalid email or password. Please check your credentials and try again.';
+        }
+        if (nestedMessage.includes('user_not_found')) {
+          return 'No account found with this email address.';
+        }
+        if (nestedMessage.includes('wrong_password')) {
+          return 'Incorrect password. Please try again.';
+        }
+        if (nestedMessage.includes('too_many_requests')) {
+          return 'Too many failed attempts. Please wait a few minutes and try again.';
+        }
+        if (nestedMessage.includes('network')) {
+          return 'Network error. Please check your internet connection.';
+        }
+      }
+      
+      // Check direct message property for keywords
+      if (error.message) {
+        const message = error.message.toLowerCase();
+        
+        if (message.includes('invalid') && (message.includes('email') || message.includes('password') || message.includes('credential'))) {
+          return 'Invalid email or password. Please check your credentials and try again.';
+        }
+        if (message.includes('network') || message.includes('connection')) {
+          return 'Network error. Please check your internet connection.';
+        }
+        if (message.includes('not found')) {
+          return 'No account found with this email address.';
+        }
+        if (message.includes('disabled')) {
+          return 'This account has been disabled. Please contact support.';
+        }
+        if (message.includes('too many')) {
+          return 'Too many failed attempts. Please wait and try again.';
+        }
+      }
+      
+      // Fallback message - user friendly
+      return 'Unable to delete account. Please check your email and password, then try again. If the problem persists, contact support.';
+    }
 
     // Helper to show messages
     function showMessage(message, type = 'error') {
       messageDiv.textContent = message;
       messageDiv.className = 'message ' + type;
       messageDiv.style.display = 'block';
+      
+      // Auto-scroll to message
+      messageDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     function clearMessage() {
@@ -337,64 +397,105 @@
       messageDiv.style.display = 'none';
     }
 
-    // Validate email (simple regex)
+    // Enhanced email validation
     function isValidEmail(email) {
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return re.test(email);
+      return re.test(email) && email.length <= 254; // RFC 5321 limit
     }
 
-    // Main delete account logic
+    // Enhanced password validation
+    function isValidPassword(password) {
+      return password && password.length >= 6; // Firebase minimum
+    }
+
+    // Main delete account logic with better error handling
     deleteBtn.addEventListener('click', async () => {
       clearMessage();
       const email = emailInput.value.trim();
       const password = passwordInput.value;
 
-      // Client-side validation
+      // Enhanced client-side validation
       if (!email || !password) {
         showMessage('Please enter both email and password.', 'error');
         return;
       }
+      
       if (!isValidEmail(email)) {
         showMessage('Please enter a valid email address.', 'error');
         return;
       }
+      
+      if (!isValidPassword(password)) {
+        showMessage('Password must be at least 6 characters long.', 'error');
+        return;
+      }
 
-      deleteBtn.innerHTML = '<span class="loader"></span> Processing...';
+      // Update button state
+      deleteBtn.innerHTML = '<span class="loader"></span> Deleting Account...';
       deleteBtn.disabled = true;
 
       try {
-        // Sign in the user
+        // Step 1: Sign in the user
         const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
 
-        // Delete the user account
+        // Step 2: Delete the user account
         await user.delete();
 
-        // Show success message
-        showMessage('Your account has been successfully deleted. All associated data has been permanently removed from our systems.', 'success');
+        // Step 3: Show success message and clear form
+        showMessage('✅ Your account has been successfully deleted. All associated data has been permanently removed from our systems. Thank you for using Benevest.', 'success');
         emailInput.value = '';
         passwordInput.value = '';
 
       } catch (error) {
-        console.error('Error deleting account:', error);
-
-        // Show mapped error message or fallback
-        if (error.code && errorMessages[error.code]) {
-          showMessage(errorMessages[error.code], 'error');
-        } else if (error.message) {
-          showMessage('Unexpected error: ' + error.message, 'error');
-        } else {
-          showMessage('An unexpected error occurred. Please try again later.', 'error');
-        }
+        console.error('Account deletion error:', error);
+        
+        // Use enhanced error handling
+        const userFriendlyMessage = getErrorMessage(error);
+        showMessage(userFriendlyMessage, 'error');
+        
       } finally {
+        // Always restore button state
         deleteBtn.innerHTML = 'Delete My Account';
         deleteBtn.disabled = false;
       }
     });
 
-    // Hide message on input
-    emailInput.addEventListener('input', clearMessage);
-    passwordInput.addEventListener('input', clearMessage);
-</script>
+    // Enhanced input handlers
+    emailInput.addEventListener('input', () => {
+      clearMessage();
+      // Optional: Real-time email validation feedback
+      if (emailInput.value && !isValidEmail(emailInput.value.trim())) {
+        emailInput.style.borderColor = '#dc3545';
+      } else {
+        emailInput.style.borderColor = '#e8d7d6';
+      }
+    });
+
+    passwordInput.addEventListener('input', () => {
+      clearMessage();
+      // Optional: Real-time password validation feedback
+      if (passwordInput.value && !isValidPassword(passwordInput.value)) {
+        passwordInput.style.borderColor = '#dc3545';
+      } else {
+        passwordInput.style.borderColor = '#e8d7d6';
+      }
+    });
+
+    // Allow Enter key to submit
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !deleteBtn.disabled) {
+        deleteBtn.click();
+      }
+    });
+
+    // Optional: Add confirmation dialog for extra safety
+    function confirmDeletion() {
+      return confirm('Are you absolutely sure you want to delete your account? This action cannot be undone and will permanently remove all your data.');
+    }
+
+    // You can add this confirmation by modifying the click handler:
+    // if (!confirmDeletion()) return;
+    </script>
 </body>
 </html>
